@@ -49,4 +49,5 @@ po/*~
 rsconnect/
 
 # Spatial data files are too big.
-*.geojson
+County_Parcels.geojson
+Hennepin_County_Street_Centerlines.geojson
