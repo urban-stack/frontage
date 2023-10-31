@@ -48,6 +48,9 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 
+# Rproj
+*.Rproj
+
 # Spatial data files are too big.
 County_Parcels.geojson
 Hennepin_County_Street_Centerlines.geojson
