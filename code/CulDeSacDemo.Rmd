@@ -1,0 +1,88 @@
+---
+title: "Cul De Sac Demo"
+output: html_document
+date: "2024-01-04"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE, results='hide', warning=FALSE}
+library(tidyverse)
+library(sf)
+library(here)
+library(nngeo)
+library(units)
+library(knitr)
+library(RColorBrewer)
+library(leaflet)
+
+here("code",
+     "helpers.R") |>
+  source()
+```
+
+First I'll read in the test data.
+
+```{r message=FALSE, results='hide'}
+parcels <- here("data",
+                "test-parcels.geojson") |>
+  st_read()|>
+  st_transform(2812)
+  
+parcels$id <- seq(1:nrow(parcels))
+
+
+streets <- here("data",
+                "test-streets.geojson") |>
+  st_read()
+```
+Finding some cul de sac to mess with
+```{r}
+cols <- c(1597:1646, 1686:1689)
+
+fewer_parcels <- parcels[cols,] |>
+  select(PID, LAT, LON, id, STREET_NM)
+
+fewer_parcels_bbox <- st_buffer(fewer_parcels, 50) |>
+  st_bbox()
+
+ggplot(fewer_parcels) +
+  geom_sf() +
+  geom_sf(data = streets,
+          linewidth = 2,
+          color = "gray") +
+  geom_text(data=fewer_parcels, 
+            aes(LON,LAT,label= id),
+            size = 2)+
+  coord_sf(xlim = c(fewer_parcels_bbox["xmin"],
+                    fewer_parcels_bbox["xmax"]),
+           ylim = c(fewer_parcels_bbox["ymin"],
+                    fewer_parcels_bbox["ymax"])) +
+  theme_void()
+```
+
+
+```{r}
+here("code",
+     "culdhelper.R") |>
+  source()
+
+culdsideslabelled<- fn_label_culdsides(fewer_parcels, streets)
+```
+
+```{r}
+ggplot(culdsideslabelled) +
+  geom_sf(aes(color = side),
+          linewidth = 1.2) +
+  geom_sf(data = streets,
+          linewidth = 2,
+          color = "grey90") +
+  coord_sf(xlim = c(fewer_parcels_bbox["xmin"],
+                    fewer_parcels_bbox["xmax"]),
+           ylim = c(fewer_parcels_bbox["ymin"],
+                    fewer_parcels_bbox["ymax"])) +
+  theme_void()
+```
+
