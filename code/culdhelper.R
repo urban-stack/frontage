@@ -4,13 +4,16 @@ fn_label_culdsides <- function(my_parcels,
                            parallel_threshold = 15,
                            culd_buffer = 25,
                            my_crs = 2812) {
+
+#dividing parcels into individual edges with a unique edge_id
 edges <- my_parcels |>
   st_segments(progress = FALSE) |>
   st_transform(my_crs)
 
   
 edges$edge_id <- seq(1:nrow(edges))
-  
+
+#adding a column 'unique' that =TRUE when the segment is apart of two lots 
 shared <- st_equals(edges, edges, remove_self = TRUE) |>
   sapply(length)
   
@@ -71,6 +74,7 @@ culdedges_labeled.1 <- edges|>
                               !unique ~ "side"))|>
 mutate(side = ifelse(is.na(side.1), "rear", side.1))
 
+#filtering for parcels that are out of the cul de sac buffer
 edges <- culdedges_labeled.1 |>
   st_transform(2812)|>
   group_by(PID)|>
@@ -81,7 +85,7 @@ edges <- culdedges_labeled.1 |>
 streets <- my_streets|>
   st_transform(2812)
 
-#using the helpers code to identify the street bearings
+#creating an index of the two nearest streets to each edge
 close_street_index <- st_nn(edges, streets, 
                             k = 2, progress = FALSE)
 
@@ -90,15 +94,20 @@ close_street_index_df <- matrix(unlist(close_street_index),
                                 byrow=TRUE) |>
   as_tibble() 
 
+#creating a tibble of street segments identified in  close_street_index
 close_street_1 <- streets[close_street_index_df$V1,] 
 close_street_2 <- streets[close_street_index_df$V2,]
 
+#using fun_bearing to identify the angle of the two nearest streets and adding that to edges tibble
 edges$street_bearing_1 <- fun_bearing(st_transform(close_street_1, 2812))
 edges$street_bearing_2 <- fun_bearing(st_transform(close_street_2, 2812))
 edges$edge_bearing <- fun_bearing(st_transform(edges, 2812))
 
 
-#running a function to label edges with original logic 
+# this long pipe labels the edges
+# front = edge is parallel to the street nearest to the parcel
+# rear = parallel to front but not nearest to nearest street
+# side = everything else 
 culdedges_labeled.2 <- edges |>
   mutate(angle_1 = abs(edge_bearing - street_bearing_1),
          angle_2 = abs(edge_bearing - street_bearing_2)) |>
@@ -124,7 +133,7 @@ culdedges_labeled.2 <- edges |>
   group_by(PID, side) |>
   summarise(geometry = st_union(result))
 
-#combining them
+#combining the labelled edges 
 culdedges_labeled.3 <- culdedges_labeled.1|>
   st_transform(2812)|>
   group_by(PID)|>
