@@ -1,14 +1,14 @@
 fn_label_culdsides <- function(my_parcels,
                            my_streets,
+                           my_crs,
                            close_threshold = 3,
                            parallel_threshold = 15,
-                           culd_buffer = 25,
-                           my_crs = 2812) {
+                           culd_buffer = 25) {
 
 #dividing parcels into individual edges with a unique edge_id
 edges <- my_parcels |>
-  st_segments(progress = FALSE) |>
-  st_transform(my_crs)
+  st_transform(my_crs) |>
+  st_segments(progress = FALSE) 
 
   
 edges$edge_id <- seq(1:nrow(edges))
@@ -58,13 +58,10 @@ end_orb <- end_points|>
 #labeling the lot edges that are within culdesac buffer 
 overlap_logvec <- st_intersects(edges, end_orb)
   
-result_tibble <- tibble(
-    overlap = as.numeric(overlap_logvec),
-    edge_id = edges$edge_id)
-  
+edges$overlap <- as.logical(apply(overlap_logvec, 1, any))
+
 edges <- edges|>
-    left_join(result_tibble)|>
-    mutate(culdnear = ifelse(is.na(overlap), FALSE, TRUE))|>
+    mutate(culdnear = ifelse(!overlap, FALSE, TRUE))|>
     mutate(culdfront = ifelse(culdnear & unique, TRUE, FALSE))|>
     select(!overlap)
   
@@ -82,26 +79,23 @@ edges <- culdedges_labeled.1 |>
   filter(!endlot)|>
   ungroup()
 
-streets <- my_streets|>
-  st_transform(2812)
-
 #creating an index of the two nearest streets to each edge
-close_street_index <- st_nn(edges, streets, 
+close_street_index <- st_nn(edges, brokenstreets, 
                             k = 2, progress = FALSE)
 
-close_street_index_df <- matrix(unlist(close_street_index),
+ close_street_index_df <- matrix(unlist(close_street_index),
                                 ncol=2,
                                 byrow=TRUE) |>
   as_tibble() 
 
 #creating a tibble of street segments identified in  close_street_index
-close_street_1 <- streets[close_street_index_df$V1,] 
-close_street_2 <- streets[close_street_index_df$V2,]
+close_street_1 <- brokenstreets[close_street_index_df$V1,] 
+close_street_2 <- brokenstreets[close_street_index_df$V2,]
 
 #using fun_bearing to identify the angle of the two nearest streets and adding that to edges tibble
-edges$street_bearing_1 <- fun_bearing(st_transform(close_street_1, 2812))
-edges$street_bearing_2 <- fun_bearing(st_transform(close_street_2, 2812))
-edges$edge_bearing <- fun_bearing(st_transform(edges, 2812))
+edges$street_bearing_1 <- fun_bearing(st_transform(close_street_1, my_crs))
+edges$street_bearing_2 <- fun_bearing(st_transform(close_street_2, my_crs))
+edges$edge_bearing <- fun_bearing(st_transform(edges, my_crs))
 
 
 # this long pipe labels the edges
@@ -127,8 +121,9 @@ culdedges_labeled.2 <- edges |>
   ungroup() |>
   mutate(angle_from_front = mapply(fn_min_diff, front_bearings, edge_bearing)) |>
   mutate(side = case_when(front ~ "front",
-                          angle_from_front < parallel_threshold ~ "rear",
-                          !unique ~ "side"))|>
+                          angle_from_front < parallel_threshold & unique~ "rear",
+                          !unique ~ "side",
+                          TRUE ~ "side"))|>
   select(PID, side)|>
   group_by(PID, side) |>
   summarise(geometry = st_union(result))
@@ -146,4 +141,46 @@ culdedges_labeled.3 <- culdedges_labeled.1|>
 
 culdedges_labelled <- bind_rows(culdedges_labeled.2, culdedges_labeled.3)
 }
+  
+
+fn_iron_edges <- function(my_edges,
+                          my_crs,
+                          parallel_threshold = 5) {
+
+edges <- my_edges|>
+  st_transform(my_crs)|>
+  st_segments(progress = FALSE)
+  
+close_edge_index <- st_nn(edges, edges, 
+                              k = 2, progress = FALSE)
+  
+close_edge_index_df <- matrix(unlist(close_edge_index),
+                                  ncol=2,
+                                  byrow=TRUE) |>
+    as_tibble() 
+  
+#creating a tibble of edges segments identified in  close_edge_index
+close_edge_1 <- edges[close_edge_index_df$V1,] 
+close_edge_2 <- edges[close_edge_index_df$V2,]
+  
+#using fun_bearing to identify the angle of the two nearest streets and adding that to edges tibble
+edges$neighbor_bearing_1 <- fun_bearing(close_edge_1)
+edges$neighbor_bearing_2 <- fun_bearing(close_edge_2)
+edges$edge_bearing <- fun_bearing(edges)
+
+edges$neighbor_side_1 <- close_edge_1$side
+edges$neighbor_side_2 <- close_edge_2$side
+
+edges <- edges |>
+  mutate(middleline = ifelse(abs(edge_bearing - neighbor_bearing_1) < parallel_threshold &
+                        abs(edge_bearing - neighbor_bearing_2) < parallel_threshold,
+                         TRUE, FALSE))|>
+  mutate(discontinuous = ifelse(middleline & (side != neighbor_side_1 | side != neighbor_side_2),
+                             TRUE, FALSE))|>
+  mutate(side = case_when(discontinuous & neighbor_side_1 == neighbor_side_2 ~ neighbor_side_1,
+                              TRUE ~ side))|>
+  select(PID, side) |>
+  group_by(PID, side) |>
+  summarise(geometry = st_union(result))
+} 
   
