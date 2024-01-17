@@ -87,6 +87,26 @@ ggplot(culdsideslabelled) +
                     fewer_parcels_bboxproj["ymax"])) +
   theme_void()
 ```
+To iron out some of these inconsistencies we can use fn_iron_edges
+```{r}
+culdsides_ironed <- fn_iron_edges(culdsideslabelled,
+                                  2812,
+                                  parallel_threshold = 45)
+
+ggplot(culdsides_ironed) +
+  geom_sf(aes(color = side),
+          linewidth = 1.2) +
+  geom_sf(data = streets,
+          linewidth = 2,
+          color = "grey90") +
+  coord_sf(xlim = c(fewer_parcels_bboxproj["xmin"],
+                    fewer_parcels_bboxproj["xmax"]),
+           ylim = c(fewer_parcels_bboxproj["ymin"],
+                    fewer_parcels_bboxproj["ymax"])) +
+  theme_void()
+```
+
+
 Let's see how this works on a regular street
 ```{r}
 fewer_parcels.2 <- parcels[2:55,] |>
