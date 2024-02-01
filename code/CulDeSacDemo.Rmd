@@ -1,0 +1,147 @@
+---
+title: "Cul De Sac Demo"
+output: html_document
+date: "2024-01-04"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE, results='hide', warning=FALSE}
+library(tidyverse)
+library(sf)
+library(here)
+library(nngeo)
+library(units)
+library(knitr)
+library(RColorBrewer)
+library(leaflet)
+
+here("code",
+     "helpers.R") |>
+  source()
+```
+
+First I'll read in the test data.
+
+```{r message=FALSE, results='hide'}
+parcels <- here("data",
+                "test-parcels.geojson") |>
+  st_read()
+  
+streets <- here("data",
+                "test-streets.geojson") |>
+  st_read()
+```
+Finding some cul de sac to mess with
+```{r}
+parcels$id <- seq(1:nrow(parcels))
+
+cols <- c(1597:1646, 1686:1689)
+
+fewer_parcels <- parcels[cols,] |>
+  select(PID, LAT, LON, id, STREET_NM)
+
+fewer_parcels_bbox <- fewer_parcels |>
+  st_buffer(50) |>
+  st_bbox()
+
+ggplot(fewer_parcels) +
+  geom_sf() +
+  geom_sf(data = streets,
+          linewidth = 2,
+          color = "gray") +
+  geom_text(data=fewer_parcels, 
+            aes(LON,LAT,label= id),
+            size = 2)+
+  coord_sf(xlim = c(fewer_parcels_bbox["xmin"],
+                    fewer_parcels_bbox["xmax"]),
+           ylim = c(fewer_parcels_bbox["ymin"],
+                    fewer_parcels_bbox["ymax"])) +
+  theme_void()
+```
+
+
+```{r}
+here("code",
+     "culdhelper.R") |>
+  source()
+
+culdsideslabelled<- fn_label_culdsides(fewer_parcels, streets, my_crs = 2812)
+
+fewer_parcels_bboxproj <- fewer_parcels |>
+  st_transform(2812)|>
+  st_buffer(50) |>
+  st_bbox()
+
+ggplot(culdsideslabelled) +
+  geom_sf(aes(color = side),
+          linewidth = 1.2) +
+  geom_sf(data = streets,
+          linewidth = 2,
+          color = "grey90") +
+  coord_sf(xlim = c(fewer_parcels_bboxproj["xmin"],
+                    fewer_parcels_bboxproj["xmax"]),
+           ylim = c(fewer_parcels_bboxproj["ymin"],
+                    fewer_parcels_bboxproj["ymax"])) +
+  theme_void()
+```
+To iron out some of these inconsistencies we can use fn_iron_edges
+```{r}
+culdsides_ironed <- fn_iron_edges(culdsideslabelled,
+                                  2812,
+                                  parallel_threshold = 45)
+
+ggplot(culdsides_ironed) +
+  geom_sf(aes(color = side),
+          linewidth = 1.2) +
+  geom_sf(data = streets,
+          linewidth = 2,
+          color = "grey90") +
+  coord_sf(xlim = c(fewer_parcels_bboxproj["xmin"],
+                    fewer_parcels_bboxproj["xmax"]),
+           ylim = c(fewer_parcels_bboxproj["ymin"],
+                    fewer_parcels_bboxproj["ymax"])) +
+  theme_void()
+```
+
+
+Let's see how this works on a regular street
+```{r}
+fewer_parcels.2 <- parcels[2:55,] |>
+  select(PID)|>
+  st_transform(2812)
+
+fewer_parcels.2_bbox <- st_buffer(fewer_parcels.2, 50) |>
+  st_bbox()
+
+culdsideslabelled.2 <- fn_label_culdsides(fewer_parcels.2, streets, 2812)
+
+
+ggplot(culdsideslabelled.2) +
+  geom_sf(aes(color = side),
+          linewidth = 1.2) +
+  geom_sf(data = streets,
+          linewidth = 2,
+          color = "grey90") +
+  coord_sf(xlim = c(fewer_parcels.2_bbox["xmin"],
+                    fewer_parcels.2_bbox["xmax"]),
+           ylim = c(fewer_parcels.2_bbox["ymin"],
+                    fewer_parcels.2_bbox["ymax"])) +
+  theme_void()
+```
+
+```{r}
+edges_labeled_more <- fn_label_culdsides(parcels, streets, 2812)
+streets <- streets|>
+  st_transform(2812)
+
+ggplot(edges_labeled_more) +
+  geom_sf(aes(color = side),
+          linewidth = 0.5) +
+  geom_sf(data = streets,
+          linewidth = .5,
+          color = "grey90")+
+  theme_void()
+```

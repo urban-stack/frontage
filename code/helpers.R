@@ -1,6 +1,7 @@
 library(tidyverse)
 library(sf)
 
+#finding the angle of edges in relationship to north/south, works best with straight lines.
 fun_bearing = function(my_line) {
   
   if(st_is_longlat(my_line)) {
@@ -20,24 +21,24 @@ fun_bearing = function(my_line) {
 fn_min_diff <- function(list_nums, num) {
   min(abs(num - unlist(list_nums)))
 }
-
-fn_label_sides <- function(my_parcels,
-                        my_streets,
-                        close_threshold = 3,
-                        parallel_threshold = 15) {
-  
+#labels the sides of a lot map in relationship to street center lines
+fn_label_sides <- function(my_parcels,  
+                           my_streets, #<- street center lines
+                           close_threshold = 3, 
+                           parallel_threshold = 15) {
+#dividing parcels into individual edges with a unique edge_id
   edges <- my_parcels |>
     st_segments(progress = FALSE) 
   
   edges$edge_id <- seq(1:nrow(edges))
-  
+#adding a column 'unique' that =TRUE when the segment is apart of two lots 
   shared <- st_equals(edges, edges, remove_self = TRUE) |>
     sapply(length)
   
   edges$unique = (shared == 0)
   
   street_segs <- st_segments(streets, progress = FALSE)
-  
+#creating an index of the two nearest streets to each parcel edge
   close_street_index <- st_nn(edges, street_segs, 
                               k = 2, progress = FALSE)
   
@@ -45,13 +46,19 @@ fn_label_sides <- function(my_parcels,
                                   ncol=2,
                                   byrow=TRUE) |>
     as_tibble() 
-  
+#creating a tibble of street segments identified in  close_street_index
   close_street_1 <- street_segs[close_street_index_df$V1,] 
-  close_street_2 <- street_segs[close_street_index_df$V2,] 
+  close_street_2 <- street_segs[close_street_index_df$V2,]
   
+#using fun_bearing to identify the angle of the two nearest streets and adding that to edges tibble
   edges$street_bearing_1 <- fun_bearing(st_transform(close_street_1, 2812))
   edges$street_bearing_2 <- fun_bearing(st_transform(close_street_2, 2812))
   edges$edge_bearing <- fun_bearing(st_transform(edges, 2812))
+  
+# this long pipe labels the edges
+# front = edge is parallel to the street nearest to the parcel
+# rear = parallel to front but not nearest to nearest street
+# side = everything else
   
   edges_labeled <- edges |>
     mutate(angle_1 = abs(edge_bearing - street_bearing_1),
