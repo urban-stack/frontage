@@ -14,7 +14,7 @@ fun_bearing = function(my_line) {
               width = max(Y) - min(Y)) |>
     mutate(bearing = atan(width/height)*180/pi)
   
-  coords$bearing
+ # coords$bearing
 }
 
 fn_min_diff <- function(list_nums, num) {
