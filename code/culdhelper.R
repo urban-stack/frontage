@@ -7,9 +7,8 @@ fn_label_culdsides <- function(my_parcels,
 
 #dividing parcels into individual edges with a unique edge_id
 edges <- my_parcels |>
-  st_transform(my_crs) |>
-  st_segments(progress = FALSE) 
-
+  st_transform(my_crs)|>
+  st_segments(progress = FALSE)
   
 edges$edge_id <- seq(1:nrow(edges))
 
@@ -21,7 +20,7 @@ shared <- st_equals(edges, edges, remove_self = TRUE) |>
   
 #segmenting the streets
 brokenstreets <- my_streets |>
-    st_segments()|>
+    st_segments(progress = FALSE)|>
     st_as_sf()|>
     st_transform(my_crs)
   
@@ -141,15 +140,13 @@ culdedges_labeled.3 <- culdedges_labeled.1|>
 
 culdedges_labelled <- bind_rows(culdedges_labeled.2, culdedges_labeled.3)
 }
-  
 
 fn_iron_edges <- function(my_edges,
                           my_crs,
                           parallel_threshold = 5) {
-
 edges <- my_edges|>
   st_transform(my_crs)|>
-  st_segments(progress = FALSE)
+  st_segmentize(3)
   
 close_edge_index <- st_nn(edges, edges, 
                               k = 2, progress = FALSE)
@@ -162,11 +159,12 @@ close_edge_index_df <- matrix(unlist(close_edge_index),
 #creating a tibble of edges segments identified in  close_edge_index
 close_edge_1 <- edges[close_edge_index_df$V1,] 
 close_edge_2 <- edges[close_edge_index_df$V2,]
-  
+
+st_geometry_type(st_geometry(close_edge_1))
 #using fun_bearing to identify the angle of the two nearest streets and adding that to edges tibble
-edges$neighbor_bearing_1 <- fun_bearing(close_edge_1)
-edges$neighbor_bearing_2 <- fun_bearing(close_edge_2)
-edges$edge_bearing <- fun_bearing(edges)
+edges$neighbor_bearing_1 <- fun_bearing(st_transform(close_edge_1, my_crs))
+edges$neighbor_bearing_2 <- fun_bearing(st_transform(close_edge_2, my_crs))
+edges$edge_bearing <- fun_bearing(st_transform(edges, my_crs))
 
 edges$neighbor_side_1 <- close_edge_1$side
 edges$neighbor_side_2 <- close_edge_2$side
@@ -178,9 +176,8 @@ edges <- edges |>
   mutate(discontinuous = ifelse(middleline & (side != neighbor_side_1 | side != neighbor_side_2),
                              TRUE, FALSE))|>
   mutate(side = case_when(discontinuous & neighbor_side_1 == neighbor_side_2 ~ neighbor_side_1,
-                              TRUE ~ side))|>
+                             TRUE ~ side))|>
   select(PID, side) |>
   group_by(PID, side) |>
   summarise(geometry = st_union(result))
 } 
-  

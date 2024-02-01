@@ -59,7 +59,6 @@ fn_label_sides <- function(my_parcels,
 # front = edge is parallel to the street nearest to the parcel
 # rear = parallel to front but not nearest to nearest street
 # side = everything else
-  
   edges_labeled <- edges |>
     mutate(angle_1 = abs(edge_bearing - street_bearing_1),
            angle_2 = abs(edge_bearing - street_bearing_2)) |>

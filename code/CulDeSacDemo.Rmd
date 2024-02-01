@@ -38,7 +38,7 @@ Finding some cul de sac to mess with
 ```{r}
 parcels$id <- seq(1:nrow(parcels))
 
-cols <- c(1597:1646, 1686:1689)
+cols <- c(1597:1646, 1686:1688)
 
 fewer_parcels <- parcels[cols,] |>
   select(PID, LAT, LON, id, STREET_NM)
@@ -63,7 +63,7 @@ ggplot(fewer_parcels) +
 ```
 
 
-```{r}
+```{r, message=FALSE, error=FALSE}
 here("code",
      "culdhelper.R") |>
   source()
@@ -87,8 +87,13 @@ ggplot(culdsideslabelled) +
                     fewer_parcels_bboxproj["ymax"])) +
   theme_void()
 ```
+ 
 To iron out some of these inconsistencies we can use fn_iron_edges
 ```{r}
+here("code",
+     "culdhelper.R") |>
+  source()
+
 culdsides_ironed <- fn_iron_edges(culdsideslabelled,
                                   2812,
                                   parallel_threshold = 45)
@@ -132,16 +137,3 @@ ggplot(culdsideslabelled.2) +
   theme_void()
 ```
 
-```{r}
-edges_labeled_more <- fn_label_culdsides(parcels, streets, 2812)
-streets <- streets|>
-  st_transform(2812)
-
-ggplot(edges_labeled_more) +
-  geom_sf(aes(color = side),
-          linewidth = 0.5) +
-  geom_sf(data = streets,
-          linewidth = .5,
-          color = "grey90")+
-  theme_void()
-```
